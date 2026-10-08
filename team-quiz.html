@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Team Quiz</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: sans-serif; background: #1e3a5f; color: white;
+           text-align: center; margin: 0; padding: 16px; min-height: 100vh; }
+    h1 { font-size: clamp(2em, 5vw, 3.5em); margin: 0.3em 0; }
+    button { font-family: inherit; font-weight: bold; border: none; cursor: pointer;
+             background: #f5b301; color: #1e3a5f; border-radius: 16px; }
+    button:hover { background: #ffd24d; }
+    button:disabled { opacity: 0.4; cursor: default; }
+    .hidden { display: none !important; }
+
+    .back { display: inline-block; float: left; color: #f5b301;
+            font-size: 1.2em; font-weight: bold; text-decoration: none; }
+    .back:hover { color: #ffd24d; text-decoration: underline; }
+
+    /* Setup */
+    #setup { max-width: 600px; margin: 0 auto; clear: both; }
+    #setup p { font-size: 1.5em; }
+    .count-row { display: flex; gap: 16px; justify-content: center; margin-bottom: 24px; }
+    .count-row button { font-size: 1.8em; padding: 12px 28px; background: #3b5f8a; color: white; }
+    .count-row button.active { background: #f5b301; color: #1e3a5f; }
+    .name-input { display: block; width: 100%; margin: 12px 0; padding: 16px;
+                  font-size: 1.6em; border-radius: 12px; border: 4px solid transparent;
+                  text-align: center; }
+    .name-input:focus { outline: none; border-color: #f5b301; }
+    .big-btn { font-size: 2em; padding: 20px 48px; margin-top: 24px; }
+
+    /* Scoreboard */
+    #scoreboard { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;
+                  position: sticky; top: 0; z-index: 10; background: #1e3a5f;
+                  padding: 8px 0 12px; margin: 0 auto 8px; max-width: 1600px; clear: both; }
+    .team { flex: 1 1 200px; max-width: 380px; border-radius: 20px; padding: 6px 12px 10px;
+            border: 5px solid rgba(255,255,255,0.3); }
+    .team-name { font-size: clamp(1.4em, 2.6vw, 2.2em); font-weight: bold;
+                 overflow-wrap: anywhere; }
+    .team-score { font-size: clamp(2.5em, 5vw, 4.5em); font-weight: bold; line-height: 1; }
+    .team-btns { display: flex; gap: 10px; justify-content: center; }
+    .team-btns button { font-size: 1.6em; padding: 6px 22px; }
+    .team-btns button.minus { background: rgba(255,255,255,0.25); color: white; }
+    .team-btns button.minus:hover { background: rgba(255,255,255,0.4); }
+
+    /* Question */
+    #quiz { max-width: 1400px; margin: 0 auto; }
+    #progress { font-size: clamp(1.2em, 2vw, 1.8em); color: #f5b301; font-weight: bold; }
+    #question { font-size: clamp(2em, 4.5vw, 4em); margin: 0.3em 0 0.5em; line-height: 1.2; }
+    #options { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .option { background: #2c5282; border-radius: 20px; padding: 12px 24px;
+              font-size: clamp(1.6em, 3.4vw, 3em); font-weight: bold; text-align: left;
+              display: flex; align-items: center; gap: 20px; border: 6px solid transparent;
+              transition: opacity 0.3s, background 0.3s; }
+    .letter { background: #f5b301; color: #1e3a5f; border-radius: 50%; flex: none;
+              width: 1.6em; height: 1.6em; display: flex; align-items: center;
+              justify-content: center; }
+    .option.correct { background: #2f9e44; border-color: #b2f2bb; }
+    .option.wrong { opacity: 0.35; }
+    #controls { margin: 20px 0; display: flex; gap: 20px; justify-content: center; }
+    #controls .big-btn { margin-top: 0; font-size: 1.7em; padding: 16px 40px; }
+
+    /* End */
+    #end { clear: both; }
+    #end h1 { font-size: clamp(2.5em, 6vw, 5em); }
+    #winner { font-size: clamp(2em, 4vw, 3.5em); color: #f5b301; font-weight: bold; }
+
+    @media (max-width: 700px) {
+      #options { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <a class="back" href="index.html">← Back to games</a>
+
+  <!-- Setup screen -->
+  <div id="setup">
+    <h1>🏆 Team Quiz</h1>
+    <p>How many teams?</p>
+    <div class="count-row" id="countRow">
+      <button data-count="2" class="active">2</button>
+      <button data-count="3">3</button>
+      <button data-count="4">4</button>
+    </div>
+    <p>Team names:</p>
+    <div id="nameInputs"></div>
+    <button class="big-btn" id="startBtn">Start Quiz ▶</button>
+  </div>
+
+  <!-- Scoreboard (visible during quiz and at the end) -->
+  <div id="scoreboard" class="hidden"></div>
+
+  <!-- Quiz screen -->
+  <div id="quiz" class="hidden">
+    <div id="progress"></div>
+    <div id="question"></div>
+    <div id="options"></div>
+    <div id="controls">
+      <button class="big-btn" id="revealBtn">Reveal answer</button>
+      <button class="big-btn" id="nextBtn" disabled>Next question ▶</button>
+    </div>
+  </div>
+
+  <!-- End screen -->
+  <div id="end" class="hidden">
+    <h1>🎉 Great job, everyone! 🎉</h1>
+    <div id="winner"></div>
+    <button class="big-btn" id="againBtn">Play again</button>
+  </div>
+
+  <script>
+    var QUESTIONS = [
+      { q: "Who built a big boat called the ark?",
+        options: ["Moses", "Noah", "David", "Peter"], answer: 1 },
+      { q: "How many days did God take to create the world (and then rest)?",
+        options: ["3", "5", "6", "10"], answer: 2 },
+      { q: "Who defeated the giant Goliath?",
+        options: ["David", "Samson", "Jonah", "Daniel"], answer: 0 },
+      { q: "Which big animal swallowed Jonah?",
+        options: ["A lion", "A bear", "A camel", "A big fish"], answer: 3 },
+      { q: "In which town was Jesus born?",
+        options: ["Jerusalem", "Nazareth", "Bethlehem", "Rome"], answer: 2 },
+      { q: "Who was thrown into a den of lions?",
+        options: ["Daniel", "Joseph", "Abraham", "Paul"], answer: 0 },
+      { q: "Who led God's people out of Egypt?",
+        options: ["Joshua", "Moses", "Elijah", "Noah"], answer: 1 },
+      { q: "How many disciples did Jesus choose?",
+        options: ["7", "10", "12", "40"], answer: 2 },
+      { q: "Jesus fed 5,000 people with 5 loaves and how many fish?",
+        options: ["1", "2", "5", "12"], answer: 1 },
+      { q: "Who was the first man God made?",
+        options: ["Adam", "Abel", "Isaac", "Jacob"], answer: 0 }
+    ];
+    var LETTERS = ["A", "B", "C", "D"];
+    var TEAM_COLORS = ["#e03131", "#1c7ed6", "#2f9e44", "#9c36b5"];
+    var DEFAULT_NAMES = ["Lions", "Eagles", "Lambs", "Doves"];
+
+    var teamCount = 2;
+    var teams = [];
+    var current = 0;
+    var revealed = false;
+
+    function $(id) { return document.getElementById(id); }
+    function show(id, on) { $(id).classList.toggle("hidden", !on); }
+
+    // ---- Setup ----
+    function renderNameInputs() {
+      var box = $("nameInputs");
+      var old = Array.prototype.map.call(box.querySelectorAll("input"), function (i) { return i.value; });
+      box.innerHTML = "";
+      for (var i = 0; i < teamCount; i++) {
+        var input = document.createElement("input");
+        input.className = "name-input";
+        input.maxLength = 20;
+        input.value = old[i] !== undefined ? old[i] : DEFAULT_NAMES[i];
+        input.style.borderLeft = "16px solid " + TEAM_COLORS[i];
+        box.appendChild(input);
+      }
+    }
+
+    $("countRow").addEventListener("click", function (e) {
+      var n = e.target.getAttribute("data-count");
+      if (!n) return;
+      teamCount = Number(n);
+      Array.prototype.forEach.call(this.children, function (b) {
+        b.classList.toggle("active", b === e.target);
+      });
+      renderNameInputs();
+    });
+
+    $("startBtn").addEventListener("click", function () {
+      var inputs = $("nameInputs").querySelectorAll("input");
+      teams = [];
+      for (var i = 0; i < inputs.length; i++) {
+        teams.push({ name: inputs[i].value.trim() || ("Team " + (i + 1)), score: 0 });
+      }
+      current = 0;
+      show("setup", false);
+      show("end", false);
+      show("scoreboard", true);
+      show("quiz", true);
+      renderScoreboard();
+      renderQuestion();
+    });
+
+    // ---- Scoreboard ----
+    function renderScoreboard() {
+      var board = $("scoreboard");
+      board.innerHTML = "";
+      teams.forEach(function (t, i) {
+        var div = document.createElement("div");
+        div.className = "team";
+        div.style.background = TEAM_COLORS[i];
+        div.innerHTML =
+          '<div class="team-name"></div>' +
+          '<div class="team-score">' + t.score + '</div>' +
+          '<div class="team-btns">' +
+          '<button class="minus" data-team="' + i + '" data-delta="-1">−1</button>' +
+          '<button data-team="' + i + '" data-delta="1">+1</button>' +
+          '</div>';
+        div.querySelector(".team-name").textContent = t.name;
+        board.appendChild(div);
+      });
+    }
+
+    $("scoreboard").addEventListener("click", function (e) {
+      var i = e.target.getAttribute("data-team");
+      if (i === null) return;
+      teams[i].score += Number(e.target.getAttribute("data-delta"));
+      renderScoreboard();
+      if (!$("end").classList.contains("hidden")) renderWinner();
+    });
+
+    // ---- Questions ----
+    function renderQuestion() {
+      var item = QUESTIONS[current];
+      revealed = false;
+      $("progress").textContent = "Question " + (current + 1) + " of " + QUESTIONS.length;
+      $("question").textContent = item.q;
+      var opts = $("options");
+      opts.innerHTML = "";
+      item.options.forEach(function (text, i) {
+        var div = document.createElement("div");
+        div.className = "option";
+        div.innerHTML = '<span class="letter">' + LETTERS[i] + '</span><span></span>';
+        div.lastChild.textContent = text;
+        opts.appendChild(div);
+      });
+      $("revealBtn").disabled = false;
+      $("nextBtn").disabled = true;
+      $("nextBtn").textContent = current === QUESTIONS.length - 1 ? "See final scores ▶" : "Next question ▶";
+    }
+
+    function reveal() {
+      if (revealed) return;
+      revealed = true;
+      var answer = QUESTIONS[current].answer;
+      Array.prototype.forEach.call($("options").children, function (el, i) {
+        el.classList.add(i === answer ? "correct" : "wrong");
+      });
+      $("revealBtn").disabled = true;
+      $("nextBtn").disabled = false;
+    }
+
+    function next() {
+      if (!revealed) return;
+      current++;
+      if (current < QUESTIONS.length) {
+        renderQuestion();
+      } else {
+        show("quiz", false);
+        show("end", true);
+        renderWinner();
+      }
+    }
+
+    function renderWinner() {
+      var top = Math.max.apply(null, teams.map(function (t) { return t.score; }));
+      var winners = teams.filter(function (t) { return t.score === top; }).map(function (t) { return t.name; });
+      $("winner").textContent = winners.length === 1
+        ? "🏆 " + winners[0] + " wins! 🏆"
+        : "🤝 It's a tie: " + winners.join(" & ") + "!";
+    }
+
+    $("revealBtn").addEventListener("click", reveal);
+    $("nextBtn").addEventListener("click", next);
+    $("againBtn").addEventListener("click", function () {
+      show("end", false);
+      show("scoreboard", false);
+      show("setup", true);
+    });
+
+    // Keyboard shortcuts for the presenter: Space/Enter = reveal, then next
+    document.addEventListener("keydown", function (e) {
+      if ($("quiz").classList.contains("hidden")) return;
+      if (e.key === " " || e.key === "Enter" || e.key === "ArrowRight") {
+        e.preventDefault();
+        // Blur so a focused button doesn't also fire its own click
+        if (document.activeElement) document.activeElement.blur();
+        if (revealed) next(); else reveal();
+      }
+    });
+
+    renderNameInputs();
+  </script>
+</body>
+</html>
