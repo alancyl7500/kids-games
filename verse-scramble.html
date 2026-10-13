@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verse Scramble – Kids' Church Games</title>
+<style>
+  :root { --bg:#1e3a5f; --panel:#2a4d78; --yellow:#f5b301; --yellow2:#ffd24d; --good:#43a047; --bad:#e53935; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:sans-serif; background:var(--bg); color:#fff; min-height:100vh; }
+  a.back { position:fixed; top:12px; left:16px; color:var(--yellow); font-weight:bold;
+           text-decoration:none; font-size:1.1rem; z-index:10; }
+  .screen { display:none; max-width:1100px; margin:0 auto; padding:52px 16px 24px; text-align:center; }
+  .screen.active { display:block; }
+  h1 { font-size:clamp(2.2rem,6vw,4rem); margin:.2em 0; }
+  .label { font-size:1.4rem; margin:18px 0 8px; }
+  .meta { opacity:.85; font-size:1.25rem; margin-top:8px; }
+  button { font-family:inherit; cursor:pointer; border:none; border-radius:14px; font-weight:bold; }
+  .btn { background:var(--yellow); color:var(--bg); font-size:clamp(1.2rem,2.6vw,1.8rem); padding:16px 32px; margin:8px; }
+  .btn:hover { background:var(--yellow2); }
+  .btn.ghost { background:var(--panel); color:#fff; }
+  .count button { width:72px; height:60px; font-size:1.8rem; margin:6px; background:var(--panel); color:#fff; }
+  .count button.on { background:var(--yellow); color:var(--bg); }
+  .names input { display:block; width:min(520px,100%); margin:10px auto; padding:14px; font-size:1.5rem;
+                 text-align:center; border-radius:12px; border:none; border-left:14px solid; }
+  .board { position:sticky; top:0; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;
+           padding:10px 0; background:var(--bg); z-index:5; }
+  .team { background:var(--panel); border-top:8px solid; border-radius:14px; padding:8px 14px; min-width:150px; }
+  .team .n { font-size:1.2rem; }
+  .team .s { font-size:2.4rem; font-weight:bold; }
+  .team button { width:44px; height:36px; font-size:1.2rem; margin:0 4px; background:#ffffff22; color:#fff; }
+  .ref { font-size:clamp(1.6rem,4vw,2.6rem); color:var(--yellow); font-weight:bold; margin:10px 0 4px; }
+  .built { min-height:120px; margin:16px auto; max-width:1000px; padding:18px; border-radius:16px;
+           border:3px dashed #ffffff44; font-size:clamp(1.5rem,3.6vw,2.6rem); line-height:1.5; }
+  .built.done { border-color:var(--good); background:#43a04722; }
+  .built span { display:inline-block; margin:0 .25em; animation:pop .3s ease; }
+  .built .empty { opacity:.5; font-size:1.2rem; }
+  .tiles { display:flex; flex-wrap:wrap; gap:12px; justify-content:center; max-width:1000px; margin:10px auto; }
+  .tile { background:#fff; color:var(--bg); font-size:clamp(1.3rem,3vw,2.2rem); padding:12px 20px;
+          border-radius:14px; box-shadow:0 5px 0 #c9d6e6; }
+  .tile:hover { transform:translateY(-2px); }
+  .tile.used { visibility:hidden; }
+  .tile.wrong { background:var(--bad); color:#fff; animation:shake .35s; }
+  .status { font-size:1.5rem; min-height:2em; margin:8px; }
+  .award { display:none; }
+  .award p { font-size:1.5rem; margin:8px; }
+  .award button { color:#fff; font-size:1.4rem; padding:14px 24px; margin:6px; }
+  .hint { opacity:.55; font-size:.95rem; margin-top:14px; }
+  @keyframes pop { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+  @keyframes shake { 0%,100% { transform:none; } 25% { transform:translateX(-8px); } 75% { transform:translateX(8px); } }
+</style>
+</head>
+<body>
+<a class="back" href="index.html">← Back to games</a>
+
+<!-- SETUP -->
+<section id="setup" class="screen active">
+  <h1>📜 Verse Scramble</h1>
+  <p class="meta">The words of a Bible verse are all mixed up.<br>Tap them in the right order to put the verse back together!</p>
+  <p class="label">How many teams?</p>
+  <div class="count"><button data-n="2">2</button><button data-n="3">3</button><button data-n="4">4</button></div>
+  <p class="label">Team names:</p>
+  <div id="names" class="names"></div>
+  <button class="btn" onclick="start()">Start Game ▶</button>
+</section>
+
+<!-- GAME -->
+<section id="game" class="screen">
+  <div id="board" class="board"></div>
+  <div id="progress" class="meta"></div>
+  <div id="ref" class="ref"></div>
+  <div id="built" class="built"></div>
+  <div id="status" class="status"></div>
+  <div id="tiles" class="tiles"></div>
+  <div>
+    <button class="btn ghost" id="undoBtn" onclick="undo()">↶ Undo</button>
+    <button class="btn ghost" id="revealBtn" onclick="solve()">Show verse</button>
+  </div>
+  <div id="award" class="award"></div>
+  <div class="hint">Wrong tile? It shakes red and the team tries again.</div>
+</section>
+
+<!-- END -->
+<section id="end" class="screen">
+  <h1 id="winner"></h1>
+  <div id="final" class="board" style="position:static"></div>
+  <button class="btn" onclick="show('setup')">Play again ↺</button>
+</section>
+
+<script>
+// ===== Verses: edit or add more here. Use "/" to split the verse into tiles. =====
+const VERSES = [
+  { ref:"Genesis 1:1",   text:"In the beginning / God created / the heavens / and the earth." },
+  { ref:"Psalm 23:1",    text:"The Lord / is my shepherd, / I lack / nothing." },
+  { ref:"John 3:16",     text:"For God / so loved / the world / that he gave / his one and only Son" },
+  { ref:"Psalm 119:105", text:"Your word / is a lamp / for my feet, / a light / on my path." },
+  { ref:"1 John 4:19",   text:"We love / because / he first / loved us." },
+  { ref:"Philippians 4:13", text:"I can do / all this / through him / who gives me / strength." },
+  { ref:"Ephesians 6:1", text:"Children, / obey / your parents / in the Lord, / for this is right." },
+  { ref:"Psalm 136:1",   text:"Give thanks / to the Lord, / for he / is good." },
+];
+
+const COLORS = ["#e53935", "#1e88e5", "#43a047", "#8e24aa"];
+const DEFAULTS = ["Lions", "Eagles", "Lambs", "Doves"];
+let count = 2, teams = [], order = [], idx = 0, parts = [], placed = [], finished = false;
+
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+function show(id) { document.querySelectorAll(".screen").forEach(s => s.classList.toggle("active", s.id === id)); }
+
+function renderNames() {
+  const box = $("names");
+  const old = [...box.querySelectorAll("input")].map(i => i.value);
+  box.innerHTML = "";
+  for (let i = 0; i < count; i++) {
+    const inp = document.createElement("input");
+    inp.value = old[i] ?? DEFAULTS[i];
+    inp.maxLength = 16;
+    inp.style.borderLeftColor = COLORS[i];
+    box.appendChild(inp);
+  }
+  document.querySelectorAll(".count button").forEach(b => b.classList.toggle("on", +b.dataset.n === count));
+}
+document.querySelectorAll(".count button").forEach(b => b.onclick = () => { count = +b.dataset.n; renderNames(); });
+
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+
+function start() {
+  teams = [...$("names").querySelectorAll("input")].map((inp, i) =>
+    ({ name: inp.value.trim() || DEFAULTS[i], color: COLORS[i], score: 0 }));
+  order = shuffle([...VERSES.keys()]);
+  idx = 0;
+  renderBoard();
+  show("game");
+  load();
+}
+
+function renderBoard() {
+  $("board").innerHTML = teams.map((t, i) =>
+    `<div class="team" style="border-top-color:${t.color}">
+       <div class="n">${esc(t.name)}</div><div class="s">${t.score}</div>
+       <button onclick="add(${i},-1)">−1</button><button onclick="add(${i},1)">+1</button>
+     </div>`).join("");
+}
+function add(i, n) { teams[i].score = Math.max(0, teams[i].score + n); renderBoard(); }
+
+function load() {
+  const v = VERSES[order[idx]];
+  parts = v.text.split("/").map(s => s.trim()).filter(Boolean);
+  placed = []; finished = false;
+  $("progress").textContent = `Verse ${idx + 1} of ${order.length}`;
+  $("ref").textContent = v.ref;
+  $("status").textContent = "";
+  $("award").style.display = "none";
+  $("undoBtn").style.display = ""; $("revealBtn").style.display = "";
+  // shuffle tile order, making sure it is not already in the right order
+  let mix;
+  do { mix = shuffle([...parts.keys()]); } while (parts.length > 1 && mix.every((p, i) => p === i));
+  $("tiles").innerHTML = mix.map(p => `<button class="tile" data-p="${p}">${esc(parts[p])}</button>`).join("");
+  $("tiles").querySelectorAll(".tile").forEach(b => b.onclick = () => pick(b));
+  renderBuilt();
+}
+
+function renderBuilt() {
+  const el = $("built");
+  el.classList.toggle("done", finished);
+  el.innerHTML = placed.length
+    ? placed.map(p => `<span>${esc(parts[p])}</span>`).join("")
+    : `<span class="empty">Tap the first part of the verse…</span>`;
+}
+
+function pick(btn) {
+  if (finished) return;
+  const p = +btn.dataset.p;
+  // a tile with the same words as the next part counts as correct
+  if (parts[p] === parts[placed.length]) {
+    btn.classList.add("used");
+    placed.push(placed.length);
+    renderBuilt();
+    if (placed.length === parts.length) complete(true);
+  } else {
+    btn.classList.remove("wrong"); void btn.offsetWidth; btn.classList.add("wrong");
+    setTimeout(() => btn.classList.remove("wrong"), 400);
+  }
+}
+
+function undo() {
+  if (finished || !placed.length) return;
+  placed.pop();
+  const used = [...$("tiles").querySelectorAll(".tile.used")];
+  const last = used.find(b => parts[+b.dataset.p] === parts[placed.length]);
+  if (last) last.classList.remove("used");
+  renderBuilt();
+}
+
+function solve() {
+  if (finished) return;
+  placed = parts.map((_, i) => i);
+  $("tiles").querySelectorAll(".tile").forEach(b => b.classList.add("used"));
+  complete(false);
+}
+
+function complete(solvedByKids) {
+  finished = true;
+  renderBuilt();
+  $("undoBtn").style.display = "none"; $("revealBtn").style.display = "none";
+  $("status").textContent = solvedByKids ? "🎉 Well done! Now say it together out loud!" : "Here's the verse. Let's read it together!";
+  const pts = solvedByKids ? 2 : 0;
+  $("award").innerHTML = (solvedByKids
+      ? `<p>Which team built it? (+${pts})</p>` +
+        teams.map((t, i) => `<button style="background:${t.color}" onclick="award(${i},${pts})">${esc(t.name)}</button>`).join("")
+      : "") +
+    `<button style="background:#ffffff22" onclick="award(-1,0)">Next verse ➜</button>`;
+  $("award").style.display = "block";
+}
+
+function award(i, pts) {
+  if (i >= 0) add(i, pts);
+  idx++;
+  if (idx >= order.length) finish(); else load();
+}
+
+function finish() {
+  const max = Math.max(...teams.map(t => t.score));
+  const winners = teams.filter(t => t.score === max);
+  $("winner").textContent =
+    max === 0 ? "Great try, everyone!" :
+    winners.length > 1 ? `🤝 It's a tie: ${winners.map(t => t.name).join(" & ")}!` :
+    `🏆 ${winners[0].name} win!`;
+  $("final").innerHTML = [...teams].sort((a, b) => b.score - a.score).map(t =>
+    `<div class="team" style="border-top-color:${t.color}"><div class="n">${esc(t.name)}</div><div class="s">${t.score}</div></div>`).join("");
+  show("end");
+}
+
+renderNames();
+</script>
+</body>
+</html>
