@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Who Am I? – Kids' Church Games</title>
+<style>
+  :root { --bg:#1e3a5f; --panel:#2a4d78; --yellow:#f5b301; --yellow2:#ffd24d; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:sans-serif; background:var(--bg); color:#fff; min-height:100vh; }
+  a.back { position:fixed; top:12px; left:16px; color:var(--yellow); font-weight:bold;
+           text-decoration:none; font-size:1.1rem; z-index:10; }
+  .screen { display:none; max-width:1100px; margin:0 auto; padding:52px 16px 24px; text-align:center; }
+  .screen.active { display:block; }
+  h1 { font-size:clamp(2.2rem,6vw,4rem); margin:.2em 0; }
+  .label { font-size:1.4rem; margin:18px 0 8px; }
+  .meta { opacity:.85; font-size:1.25rem; margin-top:8px; }
+  button { font-family:inherit; cursor:pointer; border:none; border-radius:14px; font-weight:bold; }
+  .btn { background:var(--yellow); color:var(--bg); font-size:clamp(1.2rem,2.6vw,1.8rem); padding:16px 32px; margin:8px; }
+  .btn:hover { background:var(--yellow2); }
+  .btn.ghost { background:var(--panel); color:#fff; }
+  .count button { width:72px; height:60px; font-size:1.8rem; margin:6px; background:var(--panel); color:#fff; }
+  .count button.on { background:var(--yellow); color:var(--bg); }
+  .names input { display:block; width:min(520px,100%); margin:10px auto; padding:14px; font-size:1.5rem;
+                 text-align:center; border-radius:12px; border:none; border-left:14px solid; }
+  .board { position:sticky; top:0; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;
+           padding:10px 0; background:var(--bg); z-index:5; }
+  .team { background:var(--panel); border-top:8px solid; border-radius:14px; padding:8px 14px; min-width:150px; }
+  .team .n { font-size:1.2rem; }
+  .team .s { font-size:2.4rem; font-weight:bold; }
+  .team button { width:44px; height:36px; font-size:1.2rem; margin:0 4px; background:#ffffff22; color:#fff; }
+  .clues { list-style:none; padding:0; margin:14px auto; max-width:900px; text-align:left; }
+  .clues li { background:var(--panel); margin:10px 0; padding:16px 20px; border-radius:14px;
+              font-size:clamp(1.3rem,3vw,2.1rem); animation:pop .35s ease; }
+  .clues li b { color:var(--yellow); margin-right:12px; }
+  .answer { display:none; font-size:clamp(2.4rem,7vw,4.5rem); font-weight:bold; margin:14px 0; animation:pop .4s ease; }
+  .award { display:none; }
+  .award p { font-size:1.5rem; margin:8px; }
+  .award button { color:#fff; font-size:1.4rem; padding:14px 24px; margin:6px; }
+  .hint { opacity:.55; font-size:.95rem; margin-top:14px; }
+  @keyframes pop { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }
+</style>
+</head>
+<body>
+<a class="back" href="index.html">← Back to games</a>
+
+<!-- SETUP -->
+<section id="setup" class="screen active">
+  <h1>🕵️ Who Am I?</h1>
+  <p class="meta">Listen to the clues and guess the Bible character.<br>Fewer clues = more points!</p>
+  <p class="label">How many teams?</p>
+  <div class="count"><button data-n="2">2</button><button data-n="3">3</button><button data-n="4">4</button></div>
+  <p class="label">Team names:</p>
+  <div id="names" class="names"></div>
+  <button class="btn" onclick="start()">Start Game ▶</button>
+</section>
+
+<!-- GAME -->
+<section id="game" class="screen">
+  <div id="board" class="board"></div>
+  <div id="progress" class="meta"></div>
+  <h1>Who am I?</h1>
+  <ul id="clues" class="clues"></ul>
+  <div id="answer" class="answer"></div>
+  <div id="worth" class="meta"></div>
+  <div>
+    <button class="btn" id="clueBtn" onclick="nextClue()">Next clue ➜</button>
+    <button class="btn ghost" id="ansBtn" onclick="reveal()">Show answer</button>
+  </div>
+  <div id="award" class="award"></div>
+  <div class="hint">Tip: press Space for the next clue</div>
+</section>
+
+<!-- END -->
+<section id="end" class="screen">
+  <h1 id="winner"></h1>
+  <div id="final" class="board" style="position:static"></div>
+  <button class="btn" onclick="show('setup')">Play again ↺</button>
+</section>
+
+<script>
+// ===== Characters: edit or add more here (4 clues each, easiest last) =====
+const PEOPLE = [
+  { name:"Noah", emoji:"🚢", clues:[
+    "I lived when people had become very wicked.",
+    "God told me to build something very, very big.",
+    "Animals came to me two by two.",
+    "It rained for 40 days and 40 nights." ]},
+  { name:"Moses", emoji:"🔥", clues:[
+    "As a baby, I was hidden in a basket on a river.",
+    "God spoke to me from a bush that was on fire but did not burn up.",
+    "I told Pharaoh, \"Let my people go!\"",
+    "God parted the Red Sea when I raised my staff." ]},
+  { name:"David", emoji:"🪨", clues:[
+    "I was the youngest of my brothers.",
+    "I looked after my father's sheep.",
+    "I played the harp for King Saul.",
+    "I beat a giant with a sling and a stone." ]},
+  { name:"Jonah", emoji:"🐋", clues:[
+    "God asked me to go to the city of Nineveh.",
+    "I ran away on a ship instead.",
+    "In a big storm, the sailors threw me into the sea.",
+    "I spent three days inside a big fish." ]},
+  { name:"Daniel", emoji:"🦁", clues:[
+    "I was taken far from home to Babylon.",
+    "I prayed to God three times a day, even when it was not allowed.",
+    "I was thrown into a den for praying.",
+    "God shut the lions' mouths." ]},
+  { name:"Joseph", emoji:"🧥", clues:[
+    "I had eleven brothers.",
+    "My father gave me a special coat.",
+    "My brothers sold me as a slave.",
+    "I became a ruler in Egypt and saved people from hunger." ]},
+  { name:"Esther", emoji:"👑", clues:[
+    "I was raised by my cousin Mordecai.",
+    "I became a queen.",
+    "I bravely went to see the king without being called.",
+    "God used me to save my people, the Jews." ]},
+  { name:"Peter", emoji:"🎣", clues:[
+    "I was a fisherman.",
+    "Jesus said He would make me a fisher of people.",
+    "I walked on water, until I got scared and started to sink.",
+    "Before the rooster crowed, I said three times that I didn't know Jesus." ]},
+  { name:"Zacchaeus", emoji:"🌳", clues:[
+    "I was a tax collector.",
+    "I was very rich, but people did not like me.",
+    "I was too short to see Jesus in the crowd.",
+    "I climbed a tree, and Jesus came to my house." ]},
+  { name:"Mary", emoji:"👶", clues:[
+    "An angel named Gabriel visited me.",
+    "I travelled to Bethlehem with Joseph.",
+    "There was no room for us in the inn.",
+    "I laid my baby, Jesus, in a manger." ]},
+];
+
+const COLORS = ["#e53935", "#1e88e5", "#43a047", "#8e24aa"];
+const DEFAULTS = ["Lions", "Eagles", "Lambs", "Doves"];
+let count = 2, teams = [], order = [], idx = 0, shown = 0, revealed = false;
+
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const cur = () => PEOPLE[order[idx]];
+const points = () => 5 - shown;   // 4 points after clue 1, down to 1 point after clue 4
+
+function show(id) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.toggle("active", s.id === id));
+}
+
+function renderNames() {
+  const box = $("names");
+  const old = [...box.querySelectorAll("input")].map(i => i.value);
+  box.innerHTML = "";
+  for (let i = 0; i < count; i++) {
+    const inp = document.createElement("input");
+    inp.value = old[i] ?? DEFAULTS[i];
+    inp.maxLength = 16;
+    inp.style.borderLeftColor = COLORS[i];
+    box.appendChild(inp);
+  }
+  document.querySelectorAll(".count button").forEach(b => b.classList.toggle("on", +b.dataset.n === count));
+}
+document.querySelectorAll(".count button").forEach(b => b.onclick = () => { count = +b.dataset.n; renderNames(); });
+
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+
+function start() {
+  teams = [...$("names").querySelectorAll("input")].map((inp, i) =>
+    ({ name: inp.value.trim() || DEFAULTS[i], color: COLORS[i], score: 0 }));
+  order = shuffle([...PEOPLE.keys()]);
+  idx = 0;
+  renderBoard();
+  show("game");
+  load();
+}
+
+function renderBoard() {
+  $("board").innerHTML = teams.map((t, i) =>
+    `<div class="team" style="border-top-color:${t.color}">
+       <div class="n">${esc(t.name)}</div><div class="s">${t.score}</div>
+       <button onclick="add(${i},-1)">−1</button><button onclick="add(${i},1)">+1</button>
+     </div>`).join("");
+}
+
+function add(i, n) { teams[i].score = Math.max(0, teams[i].score + n); renderBoard(); }
+
+function load() {
+  shown = 0; revealed = false;
+  $("clues").innerHTML = "";
+  $("answer").style.display = "none";
+  $("award").style.display = "none";
+  $("progress").textContent = `Character ${idx + 1} of ${order.length}`;
+  nextClue();
+}
+
+function nextClue() {
+  if (revealed || shown >= 4) return;
+  const li = document.createElement("li");
+  li.innerHTML = `<b>Clue ${shown + 1}</b>${esc(cur().clues[shown])}`;
+  $("clues").appendChild(li);
+  shown++;
+  updateButtons();
+}
+
+function updateButtons() {
+  $("clueBtn").style.display = (!revealed && shown < 4) ? "" : "none";
+  $("ansBtn").style.display = revealed ? "none" : "";
+  const p = points();
+  $("worth").textContent = revealed ? "" : `Guess now for ${p} point${p > 1 ? "s" : ""}!`;
+}
+
+function reveal() {
+  if (revealed) return;
+  revealed = true;
+  const p = cur(), pts = points();
+  $("answer").textContent = `${p.emoji} ${p.name}`;
+  $("answer").style.display = "block";
+  $("award").innerHTML = `<p>Who got it? (+${pts})</p>` +
+    teams.map((t, i) => `<button style="background:${t.color}" onclick="award(${i},${pts})">${esc(t.name)}</button>`).join("") +
+    `<button style="background:#ffffff22" onclick="award(-1,0)">Nobody</button>`;
+  $("award").style.display = "block";
+  updateButtons();
+}
+
+function award(i, pts) {
+  if (i >= 0) add(i, pts);
+  idx++;
+  if (idx >= order.length) finish(); else load();
+}
+
+function finish() {
+  const max = Math.max(...teams.map(t => t.score));
+  const winners = teams.filter(t => t.score === max);
+  $("winner").textContent =
+    max === 0 ? "Great try, everyone!" :
+    winners.length > 1 ? `🤝 It's a tie: ${winners.map(t => t.name).join(" & ")}!` :
+    `🏆 ${winners[0].name} win!`;
+  $("final").innerHTML = [...teams].sort((a, b) => b.score - a.score).map(t =>
+    `<div class="team" style="border-top-color:${t.color}"><div class="n">${esc(t.name)}</div><div class="s">${t.score}</div></div>`).join("");
+  show("end");
+}
+
+// Space / Enter / → : next clue, or show the answer after the last clue
+document.addEventListener("keydown", e => {
+  if (!$("game").classList.contains("active") || revealed) return;
+  if ([" ", "Enter", "ArrowRight"].includes(e.key)) {
+    e.preventDefault();
+    if (shown < 4) nextClue(); else reveal();
+  }
+});
+
+renderNames();
+</script>
+</body>
+</html>
