@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spin the Wheel – Kids' Church Games</title>
+<style>
+  :root { --bg:#1e3a5f; --panel:#2a4d78; --yellow:#f5b301; --yellow2:#ffd24d; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:sans-serif; background:var(--bg); color:#fff; min-height:100vh; }
+  a.back { position:fixed; top:12px; left:16px; color:var(--yellow); font-weight:bold;
+           text-decoration:none; font-size:1.1rem; z-index:10; }
+  .screen { display:none; max-width:1200px; margin:0 auto; padding:52px 16px 24px; text-align:center; }
+  .screen.active { display:block; }
+  h1 { font-size:clamp(2.2rem,6vw,4rem); margin:.2em 0; }
+  .label { font-size:1.4rem; margin:18px 0 8px; }
+  .meta { opacity:.85; font-size:1.25rem; margin-top:8px; }
+  button { font-family:inherit; cursor:pointer; border:none; border-radius:14px; font-weight:bold; }
+  button:disabled { opacity:.45; cursor:default; }
+  .btn { background:var(--yellow); color:var(--bg); font-size:clamp(1.2rem,2.6vw,1.8rem); padding:16px 32px; margin:8px; }
+  .btn:hover:not(:disabled) { background:var(--yellow2); }
+  .btn.ghost { background:var(--panel); color:#fff; }
+  .count button { width:72px; height:60px; font-size:1.8rem; margin:6px; background:var(--panel); color:#fff; }
+  .count button.on { background:var(--yellow); color:var(--bg); }
+  .names input { display:block; width:min(520px,100%); margin:10px auto; padding:14px; font-size:1.5rem;
+                 text-align:center; border-radius:12px; border:none; border-left:14px solid; }
+  .board { position:sticky; top:0; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;
+           padding:10px 0; background:var(--bg); z-index:5; }
+  .team { background:var(--panel); border-top:8px solid; border-radius:14px; padding:8px 14px; min-width:150px;
+          transition:transform .2s, box-shadow .2s; }
+  .team.turn { transform:scale(1.08); box-shadow:0 0 0 4px var(--yellow); }
+  .team .n { font-size:1.2rem; }
+  .team .s { font-size:2.4rem; font-weight:bold; }
+  .team button { width:44px; height:36px; font-size:1.2rem; margin:0 4px; background:#ffffff22; color:#fff; }
+  .turnline { font-size:clamp(1.5rem,3.4vw,2.4rem); font-weight:bold; margin:6px 0; }
+  .stage { display:flex; flex-wrap:wrap; gap:28px; align-items:center; justify-content:center; margin-top:8px; }
+  .wheelbox { position:relative; width:min(480px, 88vw); aspect-ratio:1; max-width:100%; }
+  .wheelbox canvas { width:100%; height:100%; display:block; }
+  .pointer { position:absolute; top:-6px; left:50%; transform:translateX(-50%); width:0; height:0;
+             border-left:22px solid transparent; border-right:22px solid transparent;
+             border-top:44px solid var(--yellow); filter:drop-shadow(0 3px 2px #0008); z-index:2; }
+  .card { flex:1 1 360px; max-width:560px; min-width:0; background:var(--panel); border-radius:20px; padding:24px;
+          min-height:280px; display:flex; flex-direction:column; justify-content:center; gap:10px; }
+  .card .cat { font-size:clamp(2rem,4.5vw,3rem); font-weight:bold; }
+  .card .pts { color:var(--yellow); font-size:1.4rem; font-weight:bold; }
+  .card .task { font-size:clamp(1.4rem,3vw,2.1rem); line-height:1.35; }
+  .card .ans { display:none; font-size:clamp(1.4rem,3vw,2rem); color:var(--yellow2); font-weight:bold; }
+  .card .wait { opacity:.7; font-size:1.4rem; }
+  .actions button { color:#fff; font-size:1.3rem; padding:14px 22px; margin:6px; }
+  .hint { opacity:.55; font-size:.95rem; margin-top:14px; }
+  @keyframes pop { from { opacity:0; transform:scale(.9); } to { opacity:1; transform:none; } }
+  .card.show > * { animation:pop .35s ease; }
+</style>
+</head>
+<body>
+<a class="back" href="index.html">← Back to games</a>
+
+<!-- SETUP -->
+<section id="setup" class="screen active">
+  <h1>🎡 Spin the Wheel</h1>
+  <p class="meta">Each team takes a turn to spin. Do the challenge the wheel lands on to win points!</p>
+  <p class="label">How many teams?</p>
+  <div class="count" id="teamCount"><button data-n="2">2</button><button data-n="3">3</button><button data-n="4">4</button></div>
+  <p class="label">Team names:</p>
+  <div id="names" class="names"></div>
+  <p class="label">Spins per team:</p>
+  <div class="count" id="roundCount"><button data-n="3">3</button><button data-n="4">4</button><button data-n="5">5</button></div>
+  <button class="btn" onclick="start()">Start Game ▶</button>
+</section>
+
+<!-- GAME -->
+<section id="game" class="screen">
+  <div id="board" class="board"></div>
+  <div id="turnline" class="turnline"></div>
+  <div id="progress" class="meta"></div>
+  <div class="stage">
+    <div class="wheelbox"><div class="pointer"></div><canvas id="wheel" width="960" height="960"></canvas></div>
+    <div id="card" class="card"></div>
+  </div>
+  <div class="hint">Tip: press Space to spin</div>
+</section>
+
+<!-- END -->
+<section id="end" class="screen">
+  <h1 id="winner"></h1>
+  <div id="final" class="board" style="position:static"></div>
+  <button class="btn" onclick="show('setup')">Play again ↺</button>
+</section>
+
+<script>
+// ===== Wheel sections: edit the challenges here. "answer" is optional. =====
+const SEGMENTS = [
+  { label:"Bible Question", icon:"📖", color:"#e53935", pts:2, tasks:[
+    { q:"Who was swallowed by a big fish?", answer:"Jonah" },
+    { q:"How many days did God take to make the world before He rested?", answer:"6 days" },
+    { q:"In which town was Jesus born?", answer:"Bethlehem" },
+    { q:"Who built a big boat for the animals?", answer:"Noah" },
+    { q:"What did Jesus feed 5,000 people with?", answer:"5 loaves and 2 fish" },
+    { q:"Who was the first man God made?", answer:"Adam" } ]},
+  { label:"Act It Out", icon:"🎭", color:"#8e24aa", pts:2, tasks:[
+    { q:"Act out David fighting Goliath. Other teams, no shouting the answer!" },
+    { q:"Act out Noah building the ark." },
+    { q:"Act out Jesus calming the storm." },
+    { q:"Act out Zacchaeus climbing the tree to see Jesus." },
+    { q:"Act out Daniel in the lions' den." } ]},
+  { label:"Name Three", icon:"🔢", color:"#1e88e5", pts:2, tasks:[
+    { q:"Name 3 of Jesus's 12 disciples.", answer:"e.g. Peter, John, James, Andrew, Matthew, Thomas" },
+    { q:"Name 3 books of the Bible.", answer:"e.g. Genesis, Psalms, Matthew, John" },
+    { q:"Name 3 things God made during creation.", answer:"e.g. light, sky, sea, plants, animals, people" },
+    { q:"Name 3 miracles Jesus did.", answer:"e.g. walked on water, fed 5,000, healed the blind" },
+    { q:"Name 3 animals that went into Noah's ark.", answer:"Any 3 animals!" } ]},
+  { label:"Free Points", icon:"🎁", color:"#43a047", pts:2, free:true, tasks:[
+    { q:"Lucky spin! Your team gets 2 free points. 🎉" } ]},
+  { label:"True or False", icon:"🤔", color:"#fb8c00", pts:1, tasks:[
+    { q:"True or false: Moses parted the Red Sea.", answer:"True" },
+    { q:"True or false: Jesus had 10 disciples.", answer:"False, He had 12" },
+    { q:"True or false: Jonah was swallowed by a lion.", answer:"False, a big fish" },
+    { q:"True or false: God made the world in 6 days and rested on the 7th.", answer:"True" },
+    { q:"True or false: Baby Jesus was laid in a manger.", answer:"True" } ]},
+  { label:"Say a Verse", icon:"📜", color:"#00897b", pts:2, tasks:[
+    { q:"Say any Bible verse you know by heart, with the reference if you can!" },
+    { q:"Say this week's memory verse together as a team." } ]},
+  { label:"Sing It", icon:"🎵", color:"#d81b60", pts:1, tasks:[
+    { q:"Sing one line of a worship song together as a team." },
+    { q:"Sing \"Jesus loves me\" (or another song) with actions!" } ]},
+  { label:"Thank You God", icon:"🙏", color:"#5e35b1", pts:1, tasks:[
+    { q:"Each person in the team says one thing they thank God for." },
+    { q:"Name one person you want to pray for this week." } ]},
+];
+
+const COLORS = ["#e53935", "#1e88e5", "#43a047", "#8e24aa"];
+const DEFAULTS = ["Lions", "Eagles", "Lambs", "Doves"];
+const ARC = Math.PI * 2 / SEGMENTS.length;
+let count = 2, rounds = 3, teams = [], turn = 0, spinsDone = 0, rot = 0, spinning = false, current = null;
+const used = SEGMENTS.map(() => []);
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function show(id) { document.querySelectorAll(".screen").forEach(s => s.classList.toggle("active", s.id === id)); }
+
+function renderNames() {
+  const box = $("names");
+  const old = [...box.querySelectorAll("input")].map(i => i.value);
+  box.innerHTML = "";
+  for (let i = 0; i < count; i++) {
+    const inp = document.createElement("input");
+    inp.value = old[i] ?? DEFAULTS[i];
+    inp.maxLength = 16;
+    inp.style.borderLeftColor = COLORS[i];
+    box.appendChild(inp);
+  }
+  document.querySelectorAll("#teamCount button").forEach(b => b.classList.toggle("on", +b.dataset.n === count));
+  document.querySelectorAll("#roundCount button").forEach(b => b.classList.toggle("on", +b.dataset.n === rounds));
+}
+document.querySelectorAll("#teamCount button").forEach(b => b.onclick = () => { count = +b.dataset.n; renderNames(); });
+document.querySelectorAll("#roundCount button").forEach(b => b.onclick = () => { rounds = +b.dataset.n; renderNames(); });
+
+// ---------- wheel drawing ----------
+const cv = $("wheel"), ctx = cv.getContext("2d");
+function drawWheel() {
+  const W = cv.width, c = W / 2, r = c - 16;
+  ctx.clearRect(0, 0, W, W);
+  ctx.beginPath(); ctx.arc(c, c, r + 12, 0, Math.PI * 2); ctx.fillStyle = "#ffffff"; ctx.fill();
+  SEGMENTS.forEach((s, i) => {
+    const a0 = rot + i * ARC, a1 = a0 + ARC;
+    ctx.beginPath(); ctx.moveTo(c, c); ctx.arc(c, c, r, a0, a1); ctx.closePath();
+    ctx.fillStyle = s.color; ctx.fill();
+    ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 6; ctx.stroke();
+    ctx.save();
+    ctx.translate(c, c); ctx.rotate(a0 + ARC / 2);
+    ctx.textAlign = "right"; ctx.textBaseline = "middle"; ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 40px sans-serif";
+    ctx.fillText(s.label, r - 34, 0);
+    ctx.font = "56px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(s.icon, r * 0.3, 0);
+    ctx.restore();
+  });
+  ctx.beginPath(); ctx.arc(c, c, 70, 0, Math.PI * 2); ctx.fillStyle = "#1e3a5f"; ctx.fill();
+  ctx.lineWidth = 8; ctx.strokeStyle = "#f5b301"; ctx.stroke();
+  ctx.fillStyle = "#f5b301"; ctx.font = "bold 40px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText("SPIN", c, c + 2);
+}
+cv.addEventListener("click", () => spin());
+
+// ---------- game flow ----------
+function start() {
+  teams = [...$("names").querySelectorAll("input")].map((inp, i) =>
+    ({ name: inp.value.trim() || DEFAULTS[i], color: COLORS[i], score: 0 }));
+  turn = 0; spinsDone = 0; current = null;
+  used.forEach(u => u.length = 0);
+  show("game");
+  renderBoard(); drawWheel(); idleCard();
+}
+
+function renderBoard() {
+  $("board").innerHTML = teams.map((t, i) =>
+    `<div class="team${i === turn ? " turn" : ""}" style="border-top-color:${t.color}">
+       <div class="n">${esc(t.name)}</div><div class="s">${t.score}</div>
+       <button onclick="add(${i},-1)">−1</button><button onclick="add(${i},1)">+1</button>
+     </div>`).join("");
+  const t = teams[turn];
+  $("turnline").innerHTML = `<span style="color:${t.color}">●</span> ${esc(t.name)}'s turn`;
+  $("progress").textContent = `Spin ${spinsDone + 1} of ${rounds * teams.length}`;
+}
+function add(i, n) { teams[i].score = Math.max(0, teams[i].score + n); renderBoard(); }
+
+function idleCard() {
+  $("card").className = "card";
+  $("card").innerHTML = `<div class="wait">Ready, ${esc(teams[turn].name)}?</div>
+    <div><button class="btn" id="spinBtn" onclick="spin()">Spin! 🎡</button></div>`;
+}
+
+function pickTask(i) {
+  const s = SEGMENTS[i];
+  if (used[i].length >= s.tasks.length) used[i].length = 0;
+  let k;
+  do { k = Math.floor(Math.random() * s.tasks.length); } while (used[i].includes(k));
+  used[i].push(k);
+  return s.tasks[k];
+}
+
+function spin() {
+  if (spinning || current) return;
+  spinning = true;
+  const btn = $("spinBtn"); if (btn) btn.disabled = true;
+  const target = Math.floor(Math.random() * SEGMENTS.length);
+  // pointer is at the top (angle -90°). Land in the middle of the target section, with a little wobble.
+  const wobble = (Math.random() - 0.5) * ARC * 0.6;
+  const want = -Math.PI / 2 - (target + 0.5) * ARC + wobble;
+  const base = rot - (rot % (Math.PI * 2));
+  let end = base + ((want % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) + Math.PI * 2 * (reduceMotion ? 1 : 6);
+  if (end <= rot) end += Math.PI * 2;
+  const from = rot, dur = reduceMotion ? 300 : 4200, t0 = performance.now();
+  const ease = t => 1 - Math.pow(1 - t, 4);
+  function frame(now) {
+    const t = Math.min(1, (now - t0) / dur);
+    rot = from + (end - from) * ease(t);
+    drawWheel();
+    if (t < 1) requestAnimationFrame(frame);
+    else { rot = end % (Math.PI * 2); spinning = false; landed(target); }
+  }
+  requestAnimationFrame(frame);
+}
+
+function landed(i) {
+  const s = SEGMENTS[i], task = pickTask(i), t = teams[turn];
+  current = { i, task };
+  const card = $("card");
+  card.className = "card show";
+  card.style.borderTop = `10px solid ${s.color}`;
+  let html = `<div class="cat">${s.icon} ${esc(s.label)}</div>
+              <div class="pts">${s.free ? "" : "Worth "}+${s.pts} point${s.pts > 1 ? "s" : ""}</div>
+              <div class="task">${esc(task.q)}</div>`;
+  if (task.answer) html += `<div class="ans" id="ans">Answer: ${esc(task.answer)}</div>`;
+  html += `<div class="actions">`;
+  if (s.free) {
+    html += `<button style="background:${t.color}" onclick="finishTurn(${s.pts})">Collect +${s.pts} ✔</button>`;
+  } else {
+    if (task.answer) html += `<button style="background:#ffffff22" onclick="showAns(this)">Show answer</button>`;
+    html += `<button style="background:#43a047" onclick="finishTurn(${s.pts})">They did it! +${s.pts}</button>
+             <button style="background:#ffffff22" onclick="finishTurn(0)">Not this time</button>`;
+  }
+  html += `</div>`;
+  card.innerHTML = html;
+}
+
+function showAns(btn) { $("ans").style.display = "block"; btn.remove(); }
+
+function finishTurn(pts) {
+  if (pts) add(turn, pts);
+  current = null;
+  spinsDone++;
+  if (spinsDone >= rounds * teams.length) { finish(); return; }
+  turn = (turn + 1) % teams.length;
+  $("card").style.borderTop = "";
+  renderBoard(); idleCard();
+}
+
+function finish() {
+  const max = Math.max(...teams.map(t => t.score));
+  const winners = teams.filter(t => t.score === max);
+  $("winner").textContent =
+    max === 0 ? "Great try, everyone!" :
+    winners.length > 1 ? `🤝 It's a tie: ${winners.map(t => t.name).join(" & ")}!` :
+    `🏆 ${winners[0].name} win!`;
+  $("final").innerHTML = [...teams].sort((a, b) => b.score - a.score).map(t =>
+    `<div class="team" style="border-top-color:${t.color}"><div class="n">${esc(t.name)}</div><div class="s">${t.score}</div></div>`).join("");
+  show("end");
+}
+
+document.addEventListener("keydown", e => {
+  if (!$("game").classList.contains("active")) return;
+  if (e.key === " " && e.target === document.body) { e.preventDefault(); spin(); }
+});
+
+renderNames();
+</script>
+</body>
+</html>
